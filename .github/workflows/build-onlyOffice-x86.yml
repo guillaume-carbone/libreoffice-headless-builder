@@ -1,0 +1,105 @@
+name : Build Only Office x86-64 for CarboneIO document generator
+
+on:
+  workflow_dispatch:
+    inputs:
+      oo_version:
+        type: string
+        description: Version number. Tag in openoffice repository
+        required: true
+        default: "8.0.1"
+jobs:
+  start-runner:
+    name: Start self-hoster EC2 runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ami-0314c062c813a4aa0
+          ec2-instance-type: t3.2xlarge
+          subnet-id: subnet-027c65f285842519c
+          security-group-id: sg-0ffdee926e8fcecc2
+          iam-role-name: EC2-SSM # requiered to increase disk size
+          aws-resource-tags: > # optional, requires additional permissions
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "ST", "Value": "Onlyoffice-Builder"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  install-build-deps:
+    name: Install build dependency
+    needs: start-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    steps:
+      - name: Increase disk size
+        run: |
+          TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+          INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/instance-id)
+          VOLUME_ID=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values=$INSTANCE_ID | jq -r .Volumes[0].Attachments[0].VolumeId)
+          echo $INSTANCE_ID
+          echo $VOLUME_ID
+          aws ec2 modify-volume --volume-id $VOLUME_ID --size 128
+          sleep 15  # let it update
+          growpart /dev/xvda 1
+          lsblk
+          resize2fs  /dev/xvda1
+          df -hT
+      - name: Install docker
+        run: |
+          apt update
+          apt remove -y docker docker-engine docker.io
+          apt install -y linux-image-extra-virtual
+          apt install -y apt-transport-https ca-certificates curl software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+          tee /etc/apt/sources.list.d/docker.list <<EOM
+          deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable
+          EOM
+          apt install -y docker-ce
+  build-onlyoffice:
+    name: Build OnlyOffice
+    needs: 
+      - start-runner
+      - install-build-deps
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: btactic-oo/unlimited-onlyoffice-package-builder
+      - name: Start build
+        run: ./onlyoffice-package-builder.sh --product-version=${{ inputs.oo_version }} --build-number=31 --unlimited-organization=btactic-oo --tag-suffix=-btactic --debian-package-suffix=-btactic
+  stop-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-runner # required to get output from the start-runner job
+      - install-build-deps
+      - build-onlyoffice # required to wait when the main job is doen
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
