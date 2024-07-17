@@ -81,9 +81,9 @@ jobs:
       - name: Start build
         run: ./onlyoffice-package-builder.sh --product-version=${{ inputs.oo_version }} --build-number=31 --unlimited-organization=btactic-oo --tag-suffix=-btactic --debian-package-suffix=-btactic
       - name: List output file
-        run: find ./out
+        run: find ./build_tools/out
       - name: Export File
-        run: tar cvfz archive.tgz out/
+        run: tar cvfz archive.tgz build_tools/out/
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
