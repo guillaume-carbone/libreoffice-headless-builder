@@ -7,7 +7,17 @@ on:
         type: string
         description: Version number. Tag in libreoffice repository
         required: true
-
+        default: "24.2.3.2"
+       product-name:
+          type: string
+          description: Product name
+          required: true
+          default: "LibreOffice"
+      target_version:
+        type: string
+        description: Name of build version
+        required: true
+        default: "24.2.3.2"
 jobs:
   start-runner:
     name: Start self-hoster EC2 runner
@@ -81,6 +91,8 @@ jobs:
       - name: Build
         run: |
           su - admin -c 'cd ${{ github.workspace }} && ./autogen.sh \
+            --with-product-name="${{ input.product-name }}" \
+            --with-package-version="${{ input.target_version }}" \
             --with-package-format=deb --enable-release-build --enable-mergelibs --enable-epm \
             --enable-lto --enable-python=internal --enable-gen --enable-pch=full --without-system-headers \
             --without-system-libs --without-help --without-myspell-dicts --without-java --without-doxygen \
@@ -105,13 +117,24 @@ jobs:
             --disable-dbgutil --disable-sdremote --disable-sdremote-bluetooth --disable-online-update --disable-lpsolve \
             --disable-lotuswordpro --disable-gui --disable-zxing --without-system-freetype --without-system-nss'
             su - admin -c 'cd ${{ github.workspace }} && CC=gcc-12 CXX=g++-12 make'
+          echo "### Build successfull :rocket:" >> $GITHUB_STEP_SUMMARY
       - name: Get Name of Artifact
         id: get_build_file
         run: |
           ARTIFACT_PATHNAME=$(ls workdir/installation/LibreOffice/deb/install/LibreOffice_*_Linux_aarch64_deb_download/*.tar.gz | head -n 1)
           ARTIFACT_NAME=$(basename $ARTIFACT_PATHNAME)
-          echo "::set-output name=filename::$ARTIFACT_NAME"
-          echo "::set-output name=filepath::$ARTIFACT_PATHNAME"
+          echo "filename=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "filepath=$ARTIFACT_PATHNAME" >> $GITHUB_OUTPUT
+          echo "### File $ARTIFACT_PATHNAME ready"
+      - name: Upload Artifact to bunnycdn
+        id: upload_build_file
+        uses: tomasbkk/action-ftp-upload@v1.0
+        with:
+          host: ${{ secrets.FTP_SERVER }}
+          user: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          src: $ARTIFACT_PATHNAME
+          dest: "libreoffice-headless-carbone/$ARTIFACT_NAME"
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
