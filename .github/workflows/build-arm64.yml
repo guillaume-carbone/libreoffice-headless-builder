@@ -133,8 +133,8 @@ jobs:
           host: ${{ secrets.FTP_SERVER }}
           user: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          src: $ARTIFACT_PATHNAME
-          dest: "libreoffice-headless-carbone/$ARTIFACT_NAME"
+          src: ${{ steps.get_build_file.outputs.filepath }}
+          dest: "libreoffice-headless-carbone/${{ steps.get_build_file.outputs.filename }}"
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
