@@ -61,7 +61,6 @@ jobs:
           df -hT
       - name: Install docker
         run: |
-          apt remove -y docker docker-engine docker.io
           apt install -y linux-image-extra-virtual
           apt install -y apt-transport-https ca-certificates curl software-properties-common
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
