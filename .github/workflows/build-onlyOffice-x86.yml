@@ -80,6 +80,30 @@ jobs:
           repository: btactic-oo/unlimited-onlyoffice-package-builder
       - name: Start build
         run: ./onlyoffice-package-builder.sh --product-version=${{ inputs.oo_version }} --build-number=31 --unlimited-organization=btactic-oo --tag-suffix=-btactic --debian-package-suffix=-btactic
+      - name: List output file
+        run: find ./out
+      - name: Export File
+        run: tar cvfz archive.tgz out/
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v1.0
+          release_name: Release v1.0
+          draft: false
+          prerelease: false
+      - name: Upload Release
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} 
+          asset_path: archive.tgz
+          asset_name: archive.tgz
+          asset_content_type: application/zip
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
