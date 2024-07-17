@@ -56,9 +56,9 @@ jobs:
           echo $VOLUME_ID
           aws ec2 modify-volume --volume-id $VOLUME_ID --size 128
           sleep 15  # let it update
-          growpart /dev/xvda 1
+          growpart /dev/nvme0n1 1
           lsblk
-          resize2fs  /dev/xvda1
+          resize2fs  /dev/nvme0n1p1
           df -hT
       - name: Install docker
         run: |
