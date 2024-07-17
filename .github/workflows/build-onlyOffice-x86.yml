@@ -46,6 +46,8 @@ jobs:
     steps:
       - name: Increase disk size
         run: |
+          apt update
+          apt install -y jq 
           TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
           INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/instance-id)
           VOLUME_ID=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values=$INSTANCE_ID | jq -r .Volumes[0].Attachments[0].VolumeId)
@@ -59,7 +61,6 @@ jobs:
           df -hT
       - name: Install docker
         run: |
-          apt update
           apt remove -y docker docker-engine docker.io
           apt install -y linux-image-extra-virtual
           apt install -y apt-transport-https ca-certificates curl software-properties-common
