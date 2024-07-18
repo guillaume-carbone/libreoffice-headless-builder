@@ -83,7 +83,7 @@ jobs:
       - name: List output file
         run: find ./build_tools/out
       - name: Export File
-        run: tar cvfz archive.tgz build_tools/out/
+        run: tar cvfz archive.tgz build_tools/out/linux_64/onlyoffice/documentserver/
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
